@@ -239,10 +239,27 @@ static void clib_unloadlib(CLibrary *cl)
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 #endif
 
+#include <stdio.h>
 static void *clib_getsym(CLibrary *cl, const char *name)
 {
   void *p = NULL;
   if (cl->handle == CLIB_DEFHANDLE) {  /* Search default libraries. */
+	
+	if (strcmp(name, "malloc") == 0) return malloc;
+	if (strcmp(name, "free") == 0) return free;
+	if (strcmp(name, "realloc") == 0) return realloc;
+	if (strcmp(name, "isalnum") == 0) return isalnum;
+	if (strcmp(name, "isalpha") == 0) return isalpha;
+	if (strcmp(name, "iscntrl") == 0) return iscntrl;
+	if (strcmp(name, "isdigit") == 0) return isdigit;
+	if (strcmp(name, "isgraph") == 0) return isgraph;
+	if (strcmp(name, "islower") == 0) return islower;
+	if (strcmp(name, "isprint") == 0) return isprint;
+	if (strcmp(name, "ispunct") == 0) return ispunct;
+	if (strcmp(name, "isspace") == 0) return isspace;
+	if (strcmp(name, "isupper") == 0) return isupper;
+	if (strcmp(name, "isxdigit") == 0) return isxdigit;
+	
     MSize i;
     for (i = 0; i < CLIB_HANDLE_MAX; i++) {
       HINSTANCE h = (HINSTANCE)clib_def_handle[i];
@@ -258,7 +275,7 @@ static void *clib_getsym(CLibrary *cl, const char *name)
 	  break;
 	case CLIB_HANDLE_CRT:
 	  GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-			     (const char *)&_fmode, &h);
+			     (const char *)&malloc, &h);
 	  break;
 	case CLIB_HANDLE_KERNEL32: h = LJ_WIN_LOADLIBA("kernel32.dll"); break;
 	case CLIB_HANDLE_USER32: h = LJ_WIN_LOADLIBA("user32.dll"); break;

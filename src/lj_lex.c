@@ -42,6 +42,12 @@ TKDEF(TKSTR1, TKSTR2)
 #define LEX_EOF			(-1)
 #define lex_iseol(ls)		(ls->c == '\n' || ls->c == '\r')
 
+int escape_sequences_allowed = 1;
+LUALIB_API void lj_allow_escape_sequences(int allowed)
+{
+    escape_sequences_allowed = allowed;
+}
+
 /* Get more input from reader. */
 static LJ_NOINLINE LexChar lex_more(LexState *ls)
 {
@@ -197,92 +203,96 @@ static void lex_string(LexState *ls, TValue *tv)
       lj_lex_error(ls, TK_string, LJ_ERR_XSTR);
       continue;
     case '\\': {
-      LexChar c = lex_next(ls);  /* Skip the '\\'. */
-      switch (c) {
-      case 'a': c = '\a'; break;
-      case 'b': c = '\b'; break;
-      case 'f': c = '\f'; break;
-      case 'n': c = '\n'; break;
-      case 'r': c = '\r'; break;
-      case 't': c = '\t'; break;
-      case 'v': c = '\v'; break;
-      case 'x': { /* Hexadecimal escape '\xXX'. */
-	    c = (lex_next(ls) & 15u) << 4;
-	    if (!lj_char_isdigit(ls->c)) {
-	      if (!lj_char_isxdigit(ls->c)) goto err_xesc;
-	      c += 9 << 4;
-	    }
-	    c += (lex_next(ls) & 15u);
-	    if (!lj_char_isdigit(ls->c)) {
-	      if (!lj_char_isxdigit(ls->c)) goto err_xesc;
-	      c += 9;
-	    }
-	    break;
-      }
-      case 'u': { /* Unicode escape '\u{XX...}'. */
-	    if (lex_next(ls) != '{') goto err_xesc;
-	    lex_next(ls);
-	    c = 0;
-	    do {
-	      c = (c << 4) | (ls->c & 15u);
+      if (escape_sequences_allowed) {
+        LexChar c = lex_next(ls);  /* Skip the '\\'. */
+        switch (c) {
+        case 'a': c = '\a'; break;
+        case 'b': c = '\b'; break;
+        case 'f': c = '\f'; break;
+        case 'n': c = '\n'; break;
+        case 'r': c = '\r'; break;
+        case 't': c = '\t'; break;
+        case 'v': c = '\v'; break;
+        case 'x': { /* Hexadecimal escape '\xXX'. */
+	      c = (lex_next(ls) & 15u) << 4;
+	      if (!lj_char_isdigit(ls->c)) {
+	        if (!lj_char_isxdigit(ls->c)) goto err_xesc;
+	        c += 9 << 4;
+	      }
+	      c += (lex_next(ls) & 15u);
 	      if (!lj_char_isdigit(ls->c)) {
 	        if (!lj_char_isxdigit(ls->c)) goto err_xesc;
 	        c += 9;
 	      }
-	      if (c >= 0x110000) goto err_xesc;  /* Out of Unicode range. */
-	    } while (lex_next(ls) != '}');
-	    if (c < 0x800) {
-	      if (c < 0x80) break;
-	      lex_save(ls, 0xc0 | (c >> 6));
-	    } else {
-	      if (c >= 0x10000) {
-	        lex_save(ls, 0xf0 | (c >> 18));
-	        lex_save(ls, 0x80 | ((c >> 12) & 0x3f));
-	      } else {
-	        if (c >= 0xd800 && c < 0xe000) goto err_xesc;  /* No surrogates. */
-	        lex_save(ls, 0xe0 | (c >> 12));
-	      }
-	      lex_save(ls, 0x80 | ((c >> 6) & 0x3f));
-	    }
-	    c = 0x80 | (c & 0x3f);
-	    break;
-      }
-      case 'z': { /* Skip whitespace. */
-	    lex_next(ls);
-	    while (lj_char_isspace(ls->c))
-	      if (lex_iseol(ls)) lex_newline(ls); else lex_next(ls);
-	    continue;
-      }
-      case '\n':
-      case '\r': {
-        lex_save(ls, '\n');
-        lex_newline(ls);
-        continue;
-      }
-      case '\\': case '\"': case '\'': break;
-      case LEX_EOF: continue;
-      default: {
-        if (!lj_char_isdigit(c))
-          goto err_xesc;
-	    c -= '0';  /* Decimal escape '\ddd'. */
-	    if (lj_char_isdigit(lex_next(ls))) {
-	      c = c*10 + (ls->c - '0');
-	        if (lj_char_isdigit(lex_next(ls))) {
-	          c = c*10 + (ls->c - '0');
-	          if (c > 255) {
-	          err_xesc:
-	            lj_lex_error(ls, TK_string, LJ_ERR_XESC);
-	          }
-	          lex_next(ls);
+	      break;
+        }
+        case 'u': { /* Unicode escape '\u{XX...}'. */
+	      if (lex_next(ls) != '{') goto err_xesc;
+	      lex_next(ls);
+	      c = 0;
+	      do {
+	        c = (c << 4) | (ls->c & 15u);
+	        if (!lj_char_isdigit(ls->c)) {
+	          if (!lj_char_isxdigit(ls->c)) goto err_xesc;
+	          c += 9;
 	        }
-	    }
-	    lex_save(ls, c);
-	    continue;
+	        if (c >= 0x110000) goto err_xesc;  /* Out of Unicode range. */
+	      } while (lex_next(ls) != '}');
+	      if (c < 0x800) {
+	        if (c < 0x80) break;
+	        lex_save(ls, 0xc0 | (c >> 6));
+	      } else {
+	        if (c >= 0x10000) {
+	          lex_save(ls, 0xf0 | (c >> 18));
+	          lex_save(ls, 0x80 | ((c >> 12) & 0x3f));
+	        } else {
+	          if (c >= 0xd800 && c < 0xe000) goto err_xesc;  /* No surrogates. */
+	          lex_save(ls, 0xe0 | (c >> 12));
+	        }
+	        lex_save(ls, 0x80 | ((c >> 6) & 0x3f));
+	      }
+	      c = 0x80 | (c & 0x3f);
+	      break;
+        }
+        case 'z': { /* Skip whitespace. */
+	      lex_next(ls);
+	      while (lj_char_isspace(ls->c))
+	        if (lex_iseol(ls)) lex_newline(ls); else lex_next(ls);
+	      continue;
+        }
+        case '\n':
+        case '\r': {
+          lex_save(ls, '\n');
+          lex_newline(ls);
+          continue;
+        }
+        case '\\': case '\"': case '\'': break;
+        case LEX_EOF: continue;
+        default: {
+          if (!lj_char_isdigit(c))
+            goto err_xesc;
+	      c -= '0';  /* Decimal escape '\ddd'. */
+	      if (lj_char_isdigit(lex_next(ls))) {
+	        c = c*10 + (ls->c - '0');
+	          if (lj_char_isdigit(lex_next(ls))) {
+	            c = c*10 + (ls->c - '0');
+	            if (c > 255) {
+	            err_xesc:
+	              lj_lex_error(ls, TK_string, LJ_ERR_XESC);
+	            }
+	            lex_next(ls);
+	          }
+	      }
+	      lex_save(ls, c);
+	      continue;
+        }
+        } // switch (c)
+        lex_save(ls, c);
+        lex_next(ls);
+        continue;
+      } else {
+        lex_savenext(ls);
       }
-      } // switch (c)
-      lex_save(ls, c);
-      lex_next(ls);
-      continue;
     }
     default:
       lex_savenext(ls);

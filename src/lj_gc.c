@@ -9,6 +9,12 @@
 #define lj_gc_c
 #define LUA_CORE
 
+//#define RED_PROFILE
+#ifdef RED_PROFILE
+#include <stdio.h>
+#include <windows.h>
+#endif
+
 #include "lj_obj.h"
 #include "lj_gc.h"
 #include "lj_err.h"
@@ -680,19 +686,39 @@ int LJ_FASTCALL lj_gc_step(lua_State *L)
   GCSize lim;
   int32_t ostate = g->vmstate;
   setvmstate(g, GC);
-  lim = (GCSTEPSIZE/100) * g->gc.stepmul;
-  if (lim == 0)
-    lim = LJ_MAX_MEM;
+  //lim = (GCSTEPSIZE/100) * g->gc.stepmul;
+  //if (lim == 0)
+  //  lim = LJ_MAX_MEM;
   if (g->gc.total > g->gc.threshold)
     g->gc.debt += g->gc.total - g->gc.threshold;
+
+  static double qpcFactor = 0.0;
+  if (qpcFactor == 0.0) {
+    LARGE_INTEGER sFreqStruct;
+    QueryPerformanceFrequency(&sFreqStruct);
+    qpcFactor = 10000.0 / sFreqStruct.QuadPart;
+    if (qpcFactor > 1.0) {
+      qpcFactor = 0.0;
+    }
+  }
+  LARGE_INTEGER sTime, eTime;
+  double duration;
+  QueryPerformanceCounter(&sTime);
+
   do {
-    lim -= (GCSize)gc_onestep(L);
+  
+    gc_onestep(L);
+    
     if (g->gc.state == GCSpause) {
       g->gc.threshold = (g->gc.estimate/100) * g->gc.pause;
       g->vmstate = ostate;
       return 1;  /* Finished a GC cycle. */
     }
-  } while (sizeof(lim) == 8 ? ((int64_t)lim > 0) : ((int32_t)lim > 0));
+    
+    QueryPerformanceCounter(&eTime);
+    duration = qpcFactor * (eTime.QuadPart - sTime.QuadPart);
+    
+  } while (duration < (double)g->gc.stepmul);
   if (g->gc.debt < GCSTEPSIZE) {
     g->gc.threshold = g->gc.total + GCSTEPSIZE;
     g->vmstate = ostate;

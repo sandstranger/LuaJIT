@@ -13,6 +13,10 @@ enum {
   GCSpause, GCSpropagate, GCSatomic, GCSsweepstring, GCSsweep, GCSfinalize
 };
 
+static const char* const GC_STATE_NAME[] = {
+	"pause", "propagate", "atomic", "sweepstring", "sweep", "finalize"
+};
+
 /* Bitmasks for marked field of GCobj. */
 #define LJ_GC_WHITE0	0x01
 #define LJ_GC_WHITE1	0x02

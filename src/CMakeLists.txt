@@ -225,6 +225,9 @@ endif()
 set(BUILDVM_ARCH_H ${CMAKE_CURRENT_BINARY_DIR}/buildvm_arch.h)
 set(DASM_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../dynasm/dynasm.lua)
 
+set(LJ_LUAJIT_PATH "${CMAKE_CURRENT_BINARY_DIR}/luajit.h")
+set(GENVERSION_PATH "${CMAKE_CURRENT_SOURCE_DIR}/host/genversion.lua")
+
 if (NOT LJ_BIG_ENDIAN)
   set(DASM_FLAGS ${DASM_FLAGS} -D ENDIAN_LE)
 else()
@@ -327,13 +330,31 @@ endif()
 
 set(VM_DASC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vm_${DASM_ARCH}.dasc)
 
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../.git")
+  execute_process(COMMAND git show -s "--format=%ct" OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/luajit_relver.txt")
+else()
+  copy("${CMAKE_CURRENT_SOURCE_DIR}/../.relver" "${CMAKE_CURRENT_BINARY_DIR}/luajit_relver.txt" COPYONLY)
+endif()
+
+add_custom_command(OUTPUT ${LJ_LUAJIT_PATH}
+  COMMAND ${MINILUA_PATH}
+          ${GENVERSION_PATH}
+          "${CMAKE_CURRENT_SOURCE_DIR}/luajit_rolling.h"
+          "${CMAKE_CURRENT_BINARY_DIR}/luajit_relver.txt"
+          ${LJ_LUAJIT_PATH}
+  DEPENDS minilua)
+add_custom_target(lj_luajit_h ALL
+  DEPENDS ${LJ_LUAJIT_PATH}
+)
+
 add_custom_command(OUTPUT ${BUILDVM_ARCH_H}
   COMMAND ${MINILUA_PATH} ${DASM_PATH} ${DASM_FLAGS}
           -o ${BUILDVM_ARCH_H} ${VM_DASC_PATH}
-  DEPENDS minilua)
+  DEPENDS minilua lj_luajit_h)
 add_custom_target(buildvm_arch_h ALL
   DEPENDS ${BUILDVM_ARCH_H}
 )
+
 
 # Build the buildvm for host platform
 set(BUILDVM_COMPILER_FLAGS "${TARGET_ARCH}")
@@ -372,7 +393,7 @@ else()
     COMMAND ${HOST_CMAKE_COMMAND} -E env CC="${HOST_C_COMPILER}" CXX="${HOST_CXX_COMPILER}"
             ${HOST_CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/buildvm
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/host/cmake/buildvm/CMakeLists.txt
-    DEPENDS buildvm_arch_h
+    DEPENDS buildvm_arch_h lj_luajit_h
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/buildvm)
 
   add_custom_target(buildvm ALL
@@ -429,7 +450,7 @@ add_custom_command(
 
 add_custom_target(lj_gen_headers ALL
   DEPENDS ${LJ_LIBDEF_PATH} ${LJ_RECDEF_PATH} ${LJ_VMDEF_PATH}
-  DEPENDS ${LJ_FFDEF_PATH} ${LJ_BCDEF_PATH}
+  DEPENDS ${LJ_FFDEF_PATH} ${LJ_BCDEF_PATH} ${LJ_LUAJIT_PATH}
 )
 
 set(LJ_FOLDDEF_PATH ${CMAKE_CURRENT_BINARY_DIR}/lj_folddef.h)
@@ -534,6 +555,10 @@ add_dependencies(libluajit
 target_include_directories(libluajit PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(libluajit PUBLIC
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)
 if (BUILD_SHARED_LIBS)
   if(WIN32 OR MINGW)
     set(LJ_DEFINITIONS ${LJ_DEFINITIONS} -DLUA_BUILD_AS_DLL)
@@ -597,7 +622,7 @@ if (LUAJIT_BUILD_TOOL)
   endif()
 endif()
 
-set(luajit_headers lauxlib.h lua.h luaconf.h luajit.h lualib.h)
+set(luajit_headers lauxlib.h lua.h luaconf.h "${LJ_LUAJIT_PATH}" lualib.h)
 install(FILES ${luajit_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/luajit)
 install(TARGETS libluajit
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

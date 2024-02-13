@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.0...3.5)
 
 project(minilua)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
+
 find_library(LIBM_LIBRARIES NAMES m)
 
 add_executable(minilua ../../minilua.c)

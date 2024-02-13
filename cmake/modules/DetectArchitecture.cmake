@@ -11,6 +11,7 @@ macro(detect_architecture variable)
     ${CMAKE_BINARY_DIR}
     ${__check_architecture_size_dir}/DetectArchitecture.c
     OUTPUT_VARIABLE OUTPUT
+    CMAKE_FLAGS -DCMAKE_POSITION_INDEPENDENT_CODE=OFF
     COPY_FILE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/DetectArchitecture.bin)
 
   if(HAVE_${variable})

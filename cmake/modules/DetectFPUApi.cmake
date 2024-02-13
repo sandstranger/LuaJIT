@@ -12,6 +12,7 @@ macro(detect_fpu_mode variable)
     ${CMAKE_BINARY_DIR}
     ${__check_fpu_mode_dir}/DetectFpuAbi.c
     OUTPUT_VARIABLE OUTPUT
+    CMAKE_FLAGS -DCMAKE_POSITION_INDEPENDENT_CODE=OFF
     COPY_FILE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/DetectFpuAbi.bin)
 
   if(HAVE_${variable})
@@ -42,6 +43,7 @@ macro(detect_fpu_abi variable)
     ${CMAKE_BINARY_DIR}
     ${__check_fpu_mode_dir}/DetectFpuAbi.c
     OUTPUT_VARIABLE OUTPUT
+    CMAKE_FLAGS -DCMAKE_POSITION_INDEPENDENT_CODE=OFF
     COPY_FILE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/DetectFpuAbi.bin)
 
   if(HAVE_${variable})

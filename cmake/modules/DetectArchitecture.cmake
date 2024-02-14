@@ -6,13 +6,19 @@
 ##===----------------------------------------------------------------------===##
 get_filename_component(__check_architecture_size_dir "${CMAKE_CURRENT_LIST_FILE}" PATH)
 
+include(CMakePushCheckState)
+
 macro(detect_architecture variable)
+  set(TMP_CMAKE_POSITION_INDEPENDENT_CODE ${CMAKE_POSITION_INDEPENDENT_CODE})
+  set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
   try_compile(HAVE_${variable}
     ${CMAKE_BINARY_DIR}
     ${__check_architecture_size_dir}/DetectArchitecture.c
     OUTPUT_VARIABLE OUTPUT
-    CMAKE_FLAGS -DCMAKE_POSITION_INDEPENDENT_CODE=OFF
     COPY_FILE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/DetectArchitecture.bin)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ${TMP_CMAKE_POSITION_INDEPENDENT_CODE})
+  unset(TMP_CMAKE_POSITION_INDEPENDENT_CODE)
+
 
   if(HAVE_${variable})
     file(STRINGS ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/DetectArchitecture.bin

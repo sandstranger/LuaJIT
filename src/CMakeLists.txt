@@ -545,7 +545,7 @@ if(WIN32 AND LUAJIT_FORCE_UTF8_FOPEN)
 endif()
 
 # Build the luajit static library
-add_library(libluajit ${luajit_sources})
+add_library(libluajit SHARED ${luajit_sources})
 set_target_properties(libluajit PROPERTIES OUTPUT_NAME luajit)
 add_dependencies(libluajit
   buildvm_arch_h

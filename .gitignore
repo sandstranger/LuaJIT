@@ -9,10 +9,3 @@
 *.dmp
 *.swp
 .tags
-
-#cmake
-/build/
-/build-*/
-
-#Mac OS junk
-.DS_Store

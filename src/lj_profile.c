@@ -1,6 +1,6 @@
 /*
 ** Low-overhead profiling.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lj_profile_c
@@ -185,11 +185,7 @@ static void profile_timer_start(ProfileState *ps)
   tm.it_value.tv_sec = tm.it_interval.tv_sec = interval / 1000;
   tm.it_value.tv_usec = tm.it_interval.tv_usec = (interval % 1000) * 1000;
   setitimer(ITIMER_PROF, &tm, NULL);
-#if LJ_TARGET_QNX
-  sa.sa_flags = 0;
-#else
   sa.sa_flags = SA_RESTART;
-#endif
   sa.sa_handler = profile_signal;
   sigemptyset(&sa.sa_mask);
   sigaction(SIGPROF, &sa, &ps->oldsa);
@@ -350,7 +346,8 @@ LUA_API void luaJIT_profile_stop(lua_State *L)
     lj_trace_flushall(L);
 #endif
     lj_buf_free(g, &ps->sb);
-    ps->sb.w = ps->sb.e = NULL;
+    setmref(ps->sb.b, NULL);
+    setmref(ps->sb.e, NULL);
     ps->g = NULL;
   }
 }
@@ -365,7 +362,7 @@ LUA_API const char *luaJIT_profile_dumpstack(lua_State *L, const char *fmt,
   lj_buf_reset(sb);
   lj_debug_dumpstack(L, sb, fmt, depth);
   *len = (size_t)sbuflen(sb);
-  return sb->b;
+  return sbufB(sb);
 }
 
 #endif

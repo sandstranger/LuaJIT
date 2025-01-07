@@ -1,6 +1,6 @@
 /*
 ** Definitions for x86 and x64 CPUs.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #ifndef _LJ_TARGET_X86_H
@@ -38,9 +38,10 @@ enum {
   RID_RET = RID_EAX,
 #if LJ_64
   RID_FPRET = RID_XMM0,
-#endif
+#else
   RID_RETLO = RID_EAX,
   RID_RETHI = RID_EDX,
+#endif
 
   /* These definitions must match with the *.dasc file(s): */
   RID_BASE = RID_EDX,		/* Interpreter BASE. */
@@ -116,8 +117,8 @@ enum {
 
 #if LJ_64
 /* Prefer the low 8 regs of each type to reduce REX prefixes. */
-#undef rset_picktop_
-#define rset_picktop_(rs)	(lj_fls(lj_bswap(rs)) ^ 0x18)
+#undef rset_picktop
+#define rset_picktop(rs)	(lj_fls(lj_bswap(rs)) ^ 0x18)
 #endif
 
 /* -- Spill slots --------------------------------------------------------- */
@@ -163,8 +164,6 @@ typedef struct {
 /* Limited by the range of a short fwd jump (127): (2+2)*(32-1)-2 = 122. */
 #define EXITSTUB_SPACING	(2+2)
 #define EXITSTUBS_PER_GROUP	32
-
-#define EXITTRACE_VMSTATE	1	/* g->vmstate has traceno on exit. */
 
 /* -- x86 ModRM operand encoding ------------------------------------------ */
 

@@ -1,6 +1,6 @@
 /*
 ** Public Lua/C API.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 **
 ** Major portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
@@ -104,12 +104,7 @@ LUA_API int lua_checkstack(lua_State *L, int size)
   if (size > LUAI_MAXCSTACK || (L->top - L->base + size) > LUAI_MAXCSTACK) {
     return 0;  /* Stack overflow. */
   } else if (size > 0) {
-    int avail = (int)(mref(L->maxstack, TValue) - L->top);
-    if (size > avail &&
-	lj_state_cpgrowstack(L, (MSize)(size - avail)) != LUA_OK) {
-      L->top--;
-      return 0;  /* Out of memory. */
-    }
+    lj_state_checkstack(L, (MSize)size);
   }
   return 1;
 }
@@ -712,10 +707,36 @@ LUA_API void lua_pushboolean(lua_State *L, int b)
   incr_top(L);
 }
 
+#if LJ_64
+static void *lightud_intern(lua_State *L, void *p)
+{
+  global_State *g = G(L);
+  uint64_t u = (uint64_t)p;
+  uint32_t up = lightudup(u);
+  uint32_t *segmap = mref(g->gc.lightudseg, uint32_t);
+  MSize segnum = g->gc.lightudnum;
+  if (segmap) {
+    MSize seg;
+    for (seg = 0; seg <= segnum; seg++)
+      if (segmap[seg] == up)  /* Fast path. */
+	return (void *)(((uint64_t)seg << LJ_LIGHTUD_BITS_LO) | lightudlo(u));
+    segnum++;
+  }
+  if (!((segnum-1) & segnum) && segnum != 1) {
+    if (segnum >= (1 << LJ_LIGHTUD_BITS_SEG)) lj_err_msg(L, LJ_ERR_BADLU);
+    lj_mem_reallocvec(L, segmap, segnum, segnum ? 2*segnum : 2u, uint32_t);
+    setmref(g->gc.lightudseg, segmap);
+  }
+  g->gc.lightudnum = segnum;
+  segmap[segnum] = up;
+  return (void *)(((uint64_t)segnum << LJ_LIGHTUD_BITS_LO) | lightudlo(u));
+}
+#endif
+
 LUA_API void lua_pushlightuserdata(lua_State *L, void *p)
 {
 #if LJ_64
-  p = lj_lightud_intern(L, p);
+  p = lightud_intern(L, p);
 #endif
   setrawlightudV(L->top, p);
   incr_top(L);
@@ -784,7 +805,7 @@ LUA_API void lua_concat(lua_State *L, int n)
 	L->top -= n;
 	break;
       }
-      n -= (int)(L->top - (top - 2*LJ_FR2));
+      n -= (int)(L->top - top);
       L->top = top+2;
       lj_vm_call(L, top, 1+1);
       L->top -= 1+LJ_FR2;
@@ -898,13 +919,11 @@ LUA_API int lua_next(lua_State *L, int idx)
   cTValue *t = index2adr(L, idx);
   int more;
   lj_checkapi(tvistab(t), "stack slot %d is not a table", idx);
-  more = lj_tab_next(tabV(t), L->top-1, L->top-1);
-  if (more > 0) {
+  more = lj_tab_next(L, tabV(t), L->top-1);
+  if (more) {
     incr_top(L);  /* Return new key and value slot. */
-  } else if (!more) {  /* End of traversal. */
+  } else {  /* End of traversal. */
     L->top--;  /* Remove key slot. */
-  } else {
-    lj_err_msg(L, LJ_ERR_NEXTIDX);
   }
   return more;
 }
@@ -1160,7 +1179,7 @@ static TValue *cpcall(lua_State *L, lua_CFunction func, void *ud)
   setfuncV(L, top++, fn);
   if (LJ_FR2) setnilV(top++);
 #if LJ_64
-  ud = lj_lightud_intern(L, ud);
+  ud = lightud_intern(L, ud);
 #endif
   setrawlightudV(top++, ud);
   cframe_nres(L->cframe) = 1+0;  /* Zero results. */

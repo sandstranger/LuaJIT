@@ -1,19 +1,22 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<title>Contact</title>
+<title>Status</title>
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <meta name="Copyright" content="Copyright (C) 2005-2021">
 <meta name="Language" content="en">
 <link rel="stylesheet" type="text/css" href="bluequad.css" media="screen">
 <link rel="stylesheet" type="text/css" href="bluequad-print.css" media="print">
+<style type="text/css">
+ul li { padding-bottom: 0.3em; }
+</style>
 </head>
 <body>
 <div id="site">
 <a href="https://luajit.org"><span>Lua<span id="logo">JIT</span></span></a>
 </div>
 <div id="head">
-<h1>Contact</h1>
+<h1>Status</h1>
 </div>
 <div id="nav">
 <ul><li>
@@ -44,7 +47,7 @@
 <a href="ext_profiler.html">Profiler</a>
 </li></ul>
 </li><li>
-<a href="status.html">Status</a>
+<a class="current" href="status.html">Status</a>
 </li><li>
 <a href="faq.html">FAQ</a>
 </li><li>
@@ -55,42 +58,45 @@
 </div>
 <div id="main">
 <p>
-If you want to report bugs, propose fixes or suggest enhancements,
-please use the
-<a href="https://github.com/LuaJIT/LuaJIT/issues"><span class="ext">&raquo;</span>&nbsp;GitHub issue tracker</a>.
+This documentation is for LuaJIT 2.1.0-beta3. Please check the <tt>doc</tt>
+directory in each git branch for the version-specific documentation.
 </p>
 <p>
-Please send general questions to the
-<a href="https://luajit.org/list.html"><span class="ext">&raquo;</span>&nbsp;LuaJIT mailing list</a>.
+The currently developed branches are LuaJIT&nbsp;2.1 and LuaJIT&nbsp;2.0.
 </p>
 <p>
-You can also send any questions you have directly to me:
+LuaJIT&nbsp;2.0 is in feature-freeze &mdash; new features will only
+be added to LuaJIT&nbsp;2.1.
 </p>
 
-<script type="text/javascript">
-<!--
-var xS="@-:\" .0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<abc>defghijklmnopqrstuvwxyz";function xD(s)
-{var len=s.length;var r="";for(var i=0;i<len;i++)
-{var c=s.charAt(i);var n=xS.indexOf(c);if(n!=-1)c=xS.charAt(69-n);r+=c;}
-document.write("<"+"p>"+r+"<"+"/p>\n");}
-//-->
-</script>
-<script type="text/javascript">
-<!--
-xD("fyZKB8xv\"FJytmz8.KAB0u52D")
-//--></script>
-<noscript>
-<p><img src="img/contact.png" alt="Contact info in image" width="170" height="13">
-</p>
-</noscript>
-
-<h2>Copyright</h2>
+<h2>Current Status</h2>
 <p>
-All documentation is
-Copyright &copy; 2005-2021 Mike Pall.
+LuaJIT ought to run all Lua&nbsp;5.1-compatible source code just fine.
+It's considered a serious bug if the VM crashes or produces unexpected
+results &mdash; please report this.
 </p>
-
-
+<p>
+Known incompatibilities and issues in LuaJIT&nbsp;2.0:
+</p>
+<ul>
+<li>
+There are some differences in <b>implementation-defined</b> behavior.
+These either have a good reason, are arbitrary design choices
+or are due to quirks in the VM. The latter cases may get fixed if a
+demonstrable need is shown.
+</li>
+<li>
+The Lua <b>debug API</b> is missing a couple of features (return
+hooks for non-Lua functions) and shows slightly different behavior
+in LuaJIT (no per-coroutine hooks, no tail call counting).
+</li>
+<li>
+Currently some <b>out-of-memory</b> errors from <b>on-trace code</b> are not
+handled correctly. The error may fall through an on-trace
+<tt>pcall</tt> or it may be passed on to the function set with
+<tt>lua_atpanic</tt> on x64.
+</li>
+</ul>
 <br class="flush">
 </div>
 <div id="foot">

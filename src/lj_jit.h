@@ -205,6 +205,7 @@ typedef uint32_t SnapEntry;
 #define SNAP_NORESTORE		0x040000	/* No need to restore slot. */
 #define SNAP_SOFTFPNUM		0x080000	/* Soft-float number. */
 #define SNAP_KEYINDEX		0x100000	/* Traversal key index. */
+#define TREF_KEYINDEX		0x00100000
 LJ_STATIC_ASSERT(SNAP_FRAME == TREF_FRAME);
 LJ_STATIC_ASSERT(SNAP_CONT == TREF_CONT);
 LJ_STATIC_ASSERT(SNAP_KEYINDEX == TREF_KEYINDEX);

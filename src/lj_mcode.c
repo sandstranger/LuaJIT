@@ -1,6 +1,6 @@
 /*
 ** Machine code management.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lj_mcode_c
@@ -29,11 +29,6 @@
 #include <valgrind/valgrind.h>
 #endif
 
-#if LJ_TARGET_WINDOWS
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-
 #if LJ_TARGET_IOS
 void sys_icache_invalidate(void *start, size_t len);
 #endif
@@ -46,8 +41,6 @@ void lj_mcode_sync(void *start, void *end)
 #endif
 #if LJ_TARGET_X86ORX64
   UNUSED(start); UNUSED(end);
-#elif LJ_TARGET_WINDOWS
-  FlushInstructionCache(GetCurrentProcess(), start, (char *)end-(char *)start);
 #elif LJ_TARGET_IOS
   sys_icache_invalidate(start, (char *)end-(char *)start);
 #elif LJ_TARGET_PPC
@@ -64,6 +57,9 @@ void lj_mcode_sync(void *start, void *end)
 #if LJ_HASJIT
 
 #if LJ_TARGET_WINDOWS
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 #define MCPROT_RW	PAGE_READWRITE
 #define MCPROT_RX	PAGE_EXECUTE_READ
@@ -101,15 +97,10 @@ static int mcode_setprot(void *p, size_t sz, DWORD prot)
 #define MCPROT_RW	(PROT_READ|PROT_WRITE)
 #define MCPROT_RX	(PROT_READ|PROT_EXEC)
 #define MCPROT_RWX	(PROT_READ|PROT_WRITE|PROT_EXEC)
-#ifdef PROT_MPROTECT
-#define MCPROT_CREATE	(PROT_MPROTECT(MCPROT_RWX))
-#else
-#define MCPROT_CREATE	0
-#endif
 
 static void *mcode_alloc_at(jit_State *J, uintptr_t hint, size_t sz, int prot)
 {
-  void *p = mmap((void *)hint, sz, prot|MCPROT_CREATE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  void *p = mmap((void *)hint, sz, prot, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   if (p == MAP_FAILED) {
     if (!hint) lj_trace_err(J, LJ_TRERR_MCODEAL);
     p = NULL;
@@ -172,7 +163,7 @@ static void mcode_protect(jit_State *J, int prot)
 #define MCPROT_RUN	MCPROT_RX
 
 /* Protection twiddling failed. Probably due to kernel security. */
-static LJ_NORET LJ_NOINLINE void mcode_protfail(jit_State *J)
+static LJ_NOINLINE void mcode_protfail(jit_State *J)
 {
   lua_CFunction panic = J2G(J)->panic;
   if (panic) {
@@ -180,7 +171,6 @@ static LJ_NORET LJ_NOINLINE void mcode_protfail(jit_State *J)
     setstrV(L, L->top++, lj_err_str(L, LJ_ERR_JITPROT));
     panic(L);
   }
-  exit(EXIT_FAILURE);
 }
 
 /* Change protection of MCode area. */
@@ -248,7 +238,7 @@ static void *mcode_alloc(jit_State *J, size_t sz)
 /* All memory addresses are reachable by relative jumps. */
 static void *mcode_alloc(jit_State *J, size_t sz)
 {
-#if defined(__OpenBSD__) || defined(__NetBSD__) || LJ_TARGET_UWP
+#if defined(__OpenBSD__) || LJ_TARGET_UWP
   /* Allow better executable memory allocation for OpenBSD W^X mode. */
   void *p = mcode_alloc_at(J, 0, sz, MCPROT_RUN);
   if (p && mcode_setprot(p, sz, MCPROT_GEN)) {
@@ -279,7 +269,6 @@ static void mcode_allocarea(jit_State *J)
   ((MCLink *)J->mcarea)->next = oldarea;
   ((MCLink *)J->mcarea)->size = sz;
   J->szallmcarea += sz;
-  J->mcbot = (MCode *)lj_err_register_mcode(J->mcarea, sz, (uint8_t *)J->mcbot);
 }
 
 /* Free all MCode areas. */
@@ -290,9 +279,7 @@ void lj_mcode_free(jit_State *J)
   J->szallmcarea = 0;
   while (mc) {
     MCode *next = ((MCLink *)mc)->next;
-    size_t sz = ((MCLink *)mc)->size;
-    lj_err_deregister_mcode(mc, sz, (uint8_t *)mc + sizeof(MCLink));
-    mcode_free(J, mc, sz);
+    mcode_free(J, mc, ((MCLink *)mc)->size);
     mc = next;
   }
 }
@@ -327,21 +314,21 @@ void lj_mcode_abort(jit_State *J)
 /* Set/reset protection to allow patching of MCode areas. */
 MCode *lj_mcode_patch(jit_State *J, MCode *ptr, int finish)
 {
+#if LUAJIT_SECURITY_MCODE == 0
+  UNUSED(J); UNUSED(ptr); UNUSED(finish);
+  return NULL;
+#else
   if (finish) {
-#if LUAJIT_SECURITY_MCODE
     if (J->mcarea == ptr)
       mcode_protect(J, MCPROT_RUN);
     else if (LJ_UNLIKELY(mcode_setprot(ptr, ((MCLink *)ptr)->size, MCPROT_RUN)))
       mcode_protfail(J);
-#endif
     return NULL;
   } else {
     MCode *mc = J->mcarea;
     /* Try current area first to use the protection cache. */
     if (ptr >= mc && ptr < (MCode *)((char *)mc + J->szmcarea)) {
-#if LUAJIT_SECURITY_MCODE
       mcode_protect(J, MCPROT_GEN);
-#endif
       return mc;
     }
     /* Otherwise search through the list of MCode areas. */
@@ -349,14 +336,13 @@ MCode *lj_mcode_patch(jit_State *J, MCode *ptr, int finish)
       mc = ((MCLink *)mc)->next;
       lj_assertJ(mc != NULL, "broken MCode area chain");
       if (ptr >= mc && ptr < (MCode *)((char *)mc + ((MCLink *)mc)->size)) {
-#if LUAJIT_SECURITY_MCODE
 	if (LJ_UNLIKELY(mcode_setprot(mc, ((MCLink *)mc)->size, MCPROT_GEN)))
 	  mcode_protfail(J);
-#endif
 	return mc;
       }
     }
   }
+#endif
 }
 
 /* Limit of MCode reservation reached. */
@@ -367,7 +353,7 @@ void lj_mcode_limiterr(jit_State *J, size_t need)
   sizemcode = (size_t)J->param[JIT_P_sizemcode] << 10;
   sizemcode = (sizemcode + LJ_PAGESIZE-1) & ~(size_t)(LJ_PAGESIZE - 1);
   maxmcode = (size_t)J->param[JIT_P_maxmcode] << 10;
-  if (need * sizeof(MCode) > sizemcode)
+  if ((size_t)need > sizemcode)
     lj_trace_err(J, LJ_TRERR_MCODEOV);  /* Too long for any area. */
   if (J->szallmcarea + sizemcode > maxmcode)
     lj_trace_err(J, LJ_TRERR_MCODEAL);

@@ -1,6 +1,6 @@
 /*
 ** Lua parser (source code -> bytecode).
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 **
 ** Major portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
@@ -964,22 +964,22 @@ static void bcemit_unop(FuncState *fs, BCOp op, ExpDesc *e)
 #if LJ_HASFFI
       if (e->k == VKCDATA) {  /* Fold in-place since cdata is not interned. */
 	GCcdata *cd = cdataV(&e->u.nval);
-	uint64_t *p = (uint64_t *)cdataptr(cd);
+	int64_t *p = (int64_t *)cdataptr(cd);
 	if (cd->ctypeid == CTID_COMPLEX_DOUBLE)
-	  p[1] ^= U64x(80000000,00000000);
+	  p[1] ^= (int64_t)U64x(80000000,00000000);
 	else
-	  *p = ~*p+1u;
+	  *p = -*p;
 	return;
       } else
 #endif
       if (expr_isnumk(e) && !expr_numiszero(e)) {  /* Avoid folding to -0. */
 	TValue *o = expr_numtv(e);
 	if (tvisint(o)) {
-	  int32_t k = intV(o), negk = (int32_t)(~(uint32_t)k+1u);
-	  if (k == negk)
+	  int32_t k = intV(o);
+	  if (k == -k)
 	    setnumV(o, -(lua_Number)k);
 	  else
-	    setintV(o, negk);
+	    setintV(o, -k);
 	  return;
 	} else {
 	  o->u64 ^= U64x(80000000,00000000);
@@ -1465,7 +1465,7 @@ static size_t fs_prep_var(LexState *ls, FuncState *fs, size_t *ofsvar)
     MSize len = s->len+1;
     char *p = lj_buf_more(&ls->sb, len);
     p = lj_buf_wmem(p, strdata(s), len);
-    ls->sb.w = p;
+    setsbufP(&ls->sb, p);
   }
   *ofsvar = sbuflen(&ls->sb);
   lastpc = 0;
@@ -1486,7 +1486,7 @@ static size_t fs_prep_var(LexState *ls, FuncState *fs, size_t *ofsvar)
       startpc = vs->startpc;
       p = lj_strfmt_wuleb128(p, startpc-lastpc);
       p = lj_strfmt_wuleb128(p, vs->endpc-startpc);
-      ls->sb.w = p;
+      setsbufP(&ls->sb, p);
       lastpc = startpc;
     }
   }
@@ -1499,7 +1499,7 @@ static void fs_fixup_var(LexState *ls, GCproto *pt, uint8_t *p, size_t ofsvar)
 {
   setmref(pt->uvinfo, p);
   setmref(pt->varinfo, (char *)p + ofsvar);
-  memcpy(p, ls->sb.b, sbuflen(&ls->sb));  /* Copy from temp. buffer. */
+  memcpy(p, sbufB(&ls->sb), sbuflen(&ls->sb));  /* Copy from temp. buffer. */
 }
 #else
 
@@ -1554,7 +1554,7 @@ static void fs_fixup_ret(FuncState *fs)
 	/* Replace with UCLO plus branch. */
 	fs->bcbase[pc].ins = BCINS_AD(BC_UCLO, 0, offset);
 	break;
-      case BC_FNEW:
+      case BC_UCLO:
 	return;  /* We're done. */
       default:
 	break;
@@ -2513,14 +2513,11 @@ static void parse_for_num(LexState *ls, GCstr *varname, BCLine line)
 */
 static int predict_next(LexState *ls, FuncState *fs, BCPos pc)
 {
-  BCIns ins;
+  BCIns ins = fs->bcbase[pc].ins;
   GCstr *name;
   cTValue *o;
-  if (pc >= fs->bclim) return 0;
-  ins = fs->bcbase[pc].ins;
   switch (bc_op(ins)) {
   case BC_MOV:
-    if (bc_d(ins) >= fs->nactvar) return 0;
     name = gco2str(gcref(var_get(ls, fs, bc_d(ins)).name));
     break;
   case BC_UGET:

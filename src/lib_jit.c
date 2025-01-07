@@ -1,6 +1,6 @@
 /*
 ** JIT library.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lib_jit_c
@@ -339,7 +339,11 @@ LJLIB_CF(jit_util_tracek)
       ir = &T->ir[ir->op1];
     }
 #if LJ_HASFFI
-    if (ir->o == IR_KINT64) ctype_loadffi(L);
+    if (ir->o == IR_KINT64 && !ctype_ctsG(G(L))) {
+      ptrdiff_t oldtop = savestack(L, L->top);
+      luaopen_ffi(L);  /* Load FFI library on-demand. */
+      L->top = restorestack(L, oldtop);
+    }
 #endif
     lj_ir_kvalue(L, L->top-2, ir);
     setintV(L->top-1, (int32_t)irt_type(ir->t));
@@ -415,8 +419,7 @@ LJLIB_CF(jit_util_ircalladdr)
 {
   uint32_t idx = (uint32_t)lj_lib_checkint(L, 1);
   if (idx < IRCALL__MAX) {
-    ASMFunction func = lj_ir_callinfo[idx].func;
-    setintptrV(L->top-1, (intptr_t)(void *)lj_ptr_strip(func));
+    setintptrV(L->top-1, (intptr_t)(void *)lj_ir_callinfo[idx].func);
     return 1;
   }
   return 0;
@@ -736,7 +739,7 @@ LUALIB_API int luaopen_jit(lua_State *L)
 #endif
   lua_pushliteral(L, LJ_OS_NAME);
   lua_pushliteral(L, LJ_ARCH_NAME);
-  lua_pushinteger(L, LUAJIT_VERSION_NUM);  /* Deprecated. */
+  lua_pushinteger(L, LUAJIT_VERSION_NUM);
   lua_pushliteral(L, LUAJIT_VERSION);
   LJ_LIB_REG(L, LUA_JITLIBNAME, jit);
 #if LJ_HASPROFILE

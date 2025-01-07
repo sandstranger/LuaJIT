@@ -1,6 +1,6 @@
 /*
 ** LuaJIT VM builder: Assembler source code emitter.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #include "buildvm.h"
@@ -143,7 +143,23 @@ static void emit_asm_wordreloc(BuildCtx *ctx, uint8_t *p, int n,
   if ((ins >> 26) == 16) {
     fprintf(ctx->fp, "\t%s %d, %d, " TOCPREFIX "%s\n",
 	    (ins & 1) ? "bcl" : "bc", (ins >> 21) & 31, (ins >> 16) & 31, sym);
+#if LJ_ARCH_PPC64
+  } else if ((ins >> 26) == 14) {
+    if (strcmp(sym, "TOC") < 0) {
+      fprintf(ctx->fp, "\taddi 2,2,%s\n", sym);
+    }
+  } else if ((ins >> 26) == 15) {
+    if (strcmp(sym, "TOC") < 0) {
+      fprintf(ctx->fp, "\taddis 2,12,%s\n", sym);
+    }
+#endif
   } else if ((ins >> 26) == 18) {
+#if LJ_ARCH_PPC64
+    char *suffix = strchr(sym, '@');
+    if (suffix) {
+      fprintf(ctx->fp, "\tld 12, %s(2)\n", sym);
+    } else
+#endif
     fprintf(ctx->fp, "\t%s " TOCPREFIX "%s\n", (ins & 1) ? "bl" : "b", sym);
   } else {
     fprintf(stderr,
@@ -242,13 +258,11 @@ void emit_asm(BuildCtx *ctx)
   int i, rel;
 
   fprintf(ctx->fp, "\t.file \"buildvm_%s.dasc\"\n", ctx->dasm_arch);
+#if LJ_ARCH_PPC64
+  fprintf(ctx->fp, "\t.abiversion 2\n");
+  fprintf(ctx->fp, "\t.section\t\t\".toc\",\"aw\"\n");
+#endif
   fprintf(ctx->fp, "\t.text\n");
-#if LJ_TARGET_MIPS32 && !LJ_ABI_SOFTFP
-  fprintf(ctx->fp, "\t.module fp=32\n");
-#endif
-#if LJ_TARGET_MIPS
-  fprintf(ctx->fp, "\t.set nomips16\n\t.abicalls\n\t.set noreorder\n\t.set nomacro\n");
-#endif
   emit_asm_align(ctx, 4);
 
 #if LJ_TARGET_PS3
@@ -274,6 +288,9 @@ void emit_asm(BuildCtx *ctx)
 	  ".save {r4, r5, r6, r7, r8, r9, r10, r11, lr}\n"
 	  ".pad #28\n");
 #endif
+#endif
+#if LJ_TARGET_MIPS
+  fprintf(ctx->fp, ".set nomips16\n.abicalls\n.set noreorder\n.set nomacro\n");
 #endif
 
   for (i = rel = 0; i < ctx->nsym; i++) {

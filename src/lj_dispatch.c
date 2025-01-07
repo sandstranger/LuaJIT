@@ -1,6 +1,6 @@
 /*
 ** Instruction dispatch handling.
-** Copyright (C) 2005-2023 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lj_dispatch_c
@@ -68,8 +68,6 @@ void lj_dispatch_init(GG_State *GG)
   /* The JIT engine is off by default. luaopen_jit() turns it on. */
   disp[BC_FORL] = disp[BC_IFORL];
   disp[BC_ITERL] = disp[BC_IITERL];
-  /* Workaround for stable v2.1 bytecode. TODO: Replace with BC_IITERN. */
-  disp[BC_ITERN] = &lj_vm_IITERN;
   disp[BC_LOOP] = disp[BC_ILOOP];
   disp[BC_FUNCF] = disp[BC_IFUNCF];
   disp[BC_FUNCV] = disp[BC_IFUNCV];
@@ -120,21 +118,19 @@ void lj_dispatch_update(global_State *g)
   mode |= (g->hookmask & LUA_MASKRET) ? DISPMODE_RET : 0;
   if (oldmode != mode) {  /* Mode changed? */
     ASMFunction *disp = G2GG(g)->dispatch;
-    ASMFunction f_forl, f_iterl, f_itern, f_loop, f_funcf, f_funcv;
+    ASMFunction f_forl, f_iterl, f_loop, f_funcf, f_funcv;
     g->dispatchmode = mode;
 
     /* Hotcount if JIT is on, but not while recording. */
     if ((mode & (DISPMODE_JIT|DISPMODE_REC)) == DISPMODE_JIT) {
       f_forl = makeasmfunc(lj_bc_ofs[BC_FORL]);
       f_iterl = makeasmfunc(lj_bc_ofs[BC_ITERL]);
-      f_itern = makeasmfunc(lj_bc_ofs[BC_ITERN]);
       f_loop = makeasmfunc(lj_bc_ofs[BC_LOOP]);
       f_funcf = makeasmfunc(lj_bc_ofs[BC_FUNCF]);
       f_funcv = makeasmfunc(lj_bc_ofs[BC_FUNCV]);
     } else {  /* Otherwise use the non-hotcounting instructions. */
       f_forl = disp[GG_LEN_DDISP+BC_IFORL];
       f_iterl = disp[GG_LEN_DDISP+BC_IITERL];
-      f_itern = &lj_vm_IITERN;
       f_loop = disp[GG_LEN_DDISP+BC_ILOOP];
       f_funcf = makeasmfunc(lj_bc_ofs[BC_IFUNCF]);
       f_funcv = makeasmfunc(lj_bc_ofs[BC_IFUNCV]);
@@ -142,7 +138,6 @@ void lj_dispatch_update(global_State *g)
     /* Init static counting instruction dispatch first (may be copied below). */
     disp[GG_LEN_DDISP+BC_FORL] = f_forl;
     disp[GG_LEN_DDISP+BC_ITERL] = f_iterl;
-    disp[GG_LEN_DDISP+BC_ITERN] = f_itern;
     disp[GG_LEN_DDISP+BC_LOOP] = f_loop;
 
     /* Set dynamic instruction dispatch. */
@@ -170,7 +165,6 @@ void lj_dispatch_update(global_State *g)
       /* Otherwise set dynamic counting ins. */
       disp[BC_FORL] = f_forl;
       disp[BC_ITERL] = f_iterl;
-      disp[BC_ITERN] = f_itern;
       disp[BC_LOOP] = f_loop;
       /* Set dynamic return dispatch. */
       if ((mode & DISPMODE_RET)) {
@@ -307,9 +301,9 @@ int luaJIT_setmode(lua_State *L, int idx, int mode)
       } else {
 	return 0;  /* Failed. */
       }
-      setbc_op(&g->bc_cfunc_ext, BC_FUNCCW);
+      g->bc_cfunc_ext = BCINS_AD(BC_FUNCCW, 0, 0);
     } else {
-      setbc_op(&g->bc_cfunc_ext, BC_FUNCC);
+      g->bc_cfunc_ext = BCINS_AD(BC_FUNCC, 0, 0);
     }
     break;
   default:
@@ -453,7 +447,7 @@ static int call_init(lua_State *L, GCfunc *fn)
     int numparams = pt->numparams;
     int gotparams = (int)(L->top - L->base);
     int need = pt->framesize;
-    if ((pt->flags & PROTO_VARARG)) need += 1+LJ_FR2+gotparams;
+    if ((pt->flags & PROTO_VARARG)) need += 1+gotparams;
     lj_state_checkstack(L, (MSize)need);
     numparams -= gotparams;
     return numparams >= 0 ? numparams : 0;

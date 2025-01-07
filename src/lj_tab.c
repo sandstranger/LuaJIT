@@ -16,13 +16,6 @@
 
 /* -- Object hashing ------------------------------------------------------ */
 
-/* Hash values are masked with the table hash mask and used as an index. */
-static LJ_AINLINE Node *hashmask(const GCtab *t, uint32_t hash)
-{
-  Node *n = noderef(t->node);
-  return &n[hash & t->hmask];
-}
-
 /* String hashes are precomputed when they are interned. */
 #define hashstr(t, s)		hashmask(t, (s)->hash)
 

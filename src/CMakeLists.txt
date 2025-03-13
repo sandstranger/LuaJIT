@@ -12,6 +12,7 @@ set(LUAJIT_DISABLE_FFI OFF CACHE BOOL "Permanently disable the FFI extension")
 set(LUAJIT_DISABLE_JIT OFF CACHE BOOL "Disable the JIT compiler")
 set(LUAJIT_NO_UNWIND OFF CACHE BOOL "Disable the UNWIND")
 set(LUAJIT_BUILD_TOOL ON CACHE BOOL "Build the executable of LuaJIT")
+set(LUAJIT_DISABLE_SSE2 OFF CACHE BOOL "Disable SSE2 compiler option on x86 processors")
 set(LUAJIT_NUMMODE 0 CACHE STRING
 "Specify the number mode to use. Possible values:
   0 - Default mode
@@ -590,8 +591,13 @@ target_compile_definitions(libluajit PRIVATE ${LJ_DEFINITIONS})
 
 if ("${LJ_TARGET_ARCH}" STREQUAL "x86")
   if (CMAKE_COMPILER_IS_CLANGXX OR CMAKE_COMPILER_IS_GNUCXX)
-    target_compile_options(libluajit PRIVATE
-      -march=i686 -msse -msse2 -mfpmath=sse)
+    target_compile_options(libluajit PRIVATE -march=i686 -msse)
+    if (LUAJIT_DISABLE_SSE2)
+      target_compile_options(libluajit PRIVATE -mno-sse2 -mfpmath=387)
+    else()
+      target_compile_options(libluajit PRIVATE -msse2 -mfpmath=sse)
+      message(FATAL_ERROR "FUCK!")
+    endif()
   endif()
 endif()
 

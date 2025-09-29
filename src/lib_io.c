@@ -25,6 +25,7 @@
 #include "lj_strfmt.h"
 #include "lj_ff.h"
 #include "lj_lib.h"
+#include "lj_fopen.h"
 #include "lj_strscan.h"
 #include "lj_fopen.h"
 

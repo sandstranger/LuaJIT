@@ -25,7 +25,6 @@
 #include "lj_strfmt.h"
 #include "lj_ff.h"
 #include "lj_lib.h"
-#include "lj_fopen.h"
 #include "lj_strscan.h"
 #include "lj_fopen.h"
 
@@ -552,4 +551,3 @@ LUALIB_API int luaopen_io(lua_State *L)
   io_std_new(L, stderr, "stderr");
   return 1;
 }
-

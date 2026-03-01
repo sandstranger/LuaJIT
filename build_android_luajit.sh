@@ -6,7 +6,6 @@ API=24
 LJ_ROOT=$(pwd)/LuaJIT 
 OUT_ROOT=$(pwd)/LuaJIT-build-cmake
 
-# NDK CMake toolchain
 TOOLCHAIN="$NDK_ROOT/build/cmake/android-legacy.toolchain.cmake"
 
 ABIS=(
@@ -38,8 +37,10 @@ for ABI in "${ABIS[@]}"; do
         -DLUA_BUILD_DOCS=OFF \
         -DLUA_BUILD_TESTING=OFF \
         -DANDROID_ARM_MODE=arm \
-        -DCMAKE_C_FLAGS="-Os -flto" \
-        -DCMAKE_CXX_FLAGS="-Os -flto"
+        -DANDROID_STL="c++_shared" \
+        -DCMAKE_SHADERLINKER_FLAGS="-flto -Wl,--build-id" \
+        -DCMAKE_C_FLAGS="-Os -flto -fno-omit-frame-pointer -g" \
+        -DCMAKE_CXX_FLAGS="-Os -flto -fno-omit-frame-pointer -g"
 
     make -j16
     make install

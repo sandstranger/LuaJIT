@@ -19,6 +19,8 @@ set(LUAJIT_NUMMODE 0 CACHE STRING
   1 - Single number mode
   2 - Dual number mode
 ")
+set(LUAJIT_ABI_BRANCH_TRACK OFF CACHE BOOL "Enable the ABI branch track")
+set(LUAJIT_ABI_SHADOW_STACK OFF CACHE BOOL "Enable the ABI shadow stack")
 set(LUAJIT_USE_GDBJIT OFF CACHE BOOL "Enable the GDB JIT API")
 set(LUAJIT_FORCE_UTF8_FOPEN OFF CACHE BOOL "Enforce UTF8 paths charset in fopen()/freopen() calls, even on Windows")
 
@@ -90,6 +92,7 @@ if("${LJ_DETECTED_ARCH}" STREQUAL "x86")
 elseif ("${LJ_DETECTED_ARCH}" STREQUAL "x86_64")
   set(LJ_TARGET_ARCH "x64")
 elseif ("${LJ_DETECTED_ARCH}" STREQUAL "AArch64")
+  set(LUAJIT_ABI_PAUTH OFF CACHE BOOL "Enable the ABI pointer authentification (ARM64 only)")
   set(LJ_TARGET_ARCH "arm64")
   if (LJ_BIG_ENDIAN)
     set(TARGET_ARCH -D__AARCH64EB__=1)
@@ -148,6 +151,21 @@ elseif (IOS)
   set(DASM_FLAGS ${DASM_FLAGS} -D NO_UNWIND)
   set(TARGET_ARCH ${TARGET_ARCH} -DLJ_NO_UNWIND=1)
   set(TARGET_ARCH ${TARGET_ARCH} -DLUAJIT_NO_UNWIND)
+endif()
+
+if(LUAJIT_ABI_PAUTH)
+  set(DASM_FLAGS ${DASM_FLAGS} -D PAUTH)
+  set(TARGET_ARCH ${TARGET_ARCH} -DLJ_ABI_PAUTH=1)
+endif()
+
+if(LUAJIT_ABI_BRANCH_TRACK)
+  set(DASM_FLAGS ${DASM_FLAGS} -D BRANCH_TRACK)
+  set(TARGET_ARCH ${TARGET_ARCH} -DLJ_ABI_BRANCH_TRACK=1)
+endif()
+
+if(LUAJIT_ABI_SHADOW_STACK)
+  set(DASM_FLAGS ${DASM_FLAGS} -D SHADOW_STACK)
+  set(TARGET_ARCH ${TARGET_ARCH} -DLJ_ABI_SHADOW_STACK=1)
 endif()
 
 set(LJ_DEFINITIONS "")

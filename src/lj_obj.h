@@ -635,7 +635,6 @@ typedef struct global_State {
   TValue registrytv;	/* Anchor for registry. */
   TValue tmptv, tmptv2;	/* Temporary TValues. */
   Node nilnode;		/* Fallback 1-element hash part (nil key and value). */
-  TValue registrytv;	/* Anchor for registry. */
   GCRef vmthref;	/* Link to VM thread. */
   GCupval uvhead;	/* Head of double-linked list of all open upvalues. */
   int32_t hookcount;	/* Instruction hook countdown. */

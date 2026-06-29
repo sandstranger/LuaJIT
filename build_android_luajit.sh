@@ -8,12 +8,7 @@ OUT_ROOT=$(pwd)/LuaJIT-build-cmake
 
 TOOLCHAIN="$NDK_ROOT/build/cmake/android-legacy.toolchain.cmake"
 
-ABIS=(
-    "armeabi-v7a"
-    "arm64-v8a"
-    "x86"
-    "x86_64"
-)
+ABIS=("arm64-v8a")
 
 mkdir -p $OUT_ROOT
 
@@ -29,6 +24,7 @@ for ABI in "${ABIS[@]}"; do
     cmake .. \
         -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
         -DANDROID_ABI=$ABI \
+        -D_FILE_OFFSET_BITS=64 \
         -DANDROID_PLATFORM=android-$API \
         -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
         -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -38,9 +34,9 @@ for ABI in "${ABIS[@]}"; do
         -DLUA_BUILD_TESTING=OFF \
         -DANDROID_ARM_MODE=arm \
         -DANDROID_STL="c++_shared" \
-        -DCMAKE_SHADERLINKER_FLAGS="-flto -Wl,--build-id" \
-        -DCMAKE_C_FLAGS="-Os -flto -fno-omit-frame-pointer -g" \
-        -DCMAKE_CXX_FLAGS="-Os -flto -fno-omit-frame-pointer -g"
+        -DCMAKE_SHADERLINKER_FLAGS="-flto=thin -Wl,--build-id" \
+        -DCMAKE_C_FLAGS="-Os -flto=thin -fno-omit-frame-pointer -funwind-tables -fstack-protector-strong -g -D_FILE_OFFSET_BITS=64" \
+        -DCMAKE_CXX_FLAGS="-Os -flto=thin -fno-omit-frame-pointer -funwind-tables -fstack-protector-strong -g -D_FILE_OFFSET_BITS=64"
 
     make -j16
     make install
